@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>條碼掃描測試頁面</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      text-align: center;
+      background-color: #f4f4f4;
+    }
+    h1 {
+      margin-top: 20px;
+    }
+    #input-container {
+      margin: 20px auto;
+    }
+    input[type="text"] {
+      width: 80%;
+      padding: 10px;
+      font-size: 16px;
+      margin-bottom: 10px;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      background-color: #007BFF;
+      color: white;
+      border: none;
+      border-radius: 5px;
+    }
+    #scanner-container {
+      position: relative;
+      width: 100%;
+      max-width: 400px;
+      margin: 20px auto;
+      display: none;
+    }
+    #scanner {
+      width: 100%;
+      border: 1px solid #ccc;
+    }
+  </style>
+</head>
+<body>
+  <h1>條碼掃描測試頁面</h1>
+  <div id="input-container">
+    <label for="document-id">公文編號：</label>
+    <input type="text" id="document-id" placeholder="請輸入或掃描條碼">
+    <button id="start-scanner">啟用相機掃描</button>
+  </div>
+  <div id="scanner-container">
+    <video id="scanner"></video>
+  </div>
+
+  <script>
+    const startScannerButton = document.getElementById('start-scanner');
+    const documentIdInput = document.getElementById('document-id');
+    const scannerContainer = document.getElementById('scanner-container');
+    const scannerVideo = document.getElementById('scanner');
+
+    let isScanning = false;
+
+    startScannerButton.addEventListener('click', () => {
+      if (isScanning) {
+        stopScanner();
+      } else {
+        startScanner();
+      }
+    });
+
+    function startScanner() {
+      isScanning = true;
+      startScannerButton.textContent = '停止掃描';
+      scannerContainer.style.display = 'block';
+
+      Quagga.init({
+        inputStream: {
+          name: 'Live',
+          type: 'LiveStream',
+          target: scannerVideo,
+          constraints: {
+            width: 640,
+            height: 480,
+            facingMode: 'environment' // 使用後置相機
+          }
+        },
+        decoder: {
+          readers: ['code_128_reader', 'ean_reader', 'ean_8_reader'] // 支援的條碼格式
+        }
+      }, (err) => {
+        if (err) {
+          console.error(err);
+          alert('無法啟用相機，請檢查瀏覽器權限或設備相機');
+          stopScanner();
+          return;
+        }
+        Quagga.start();
+      });
+
+      Quagga.onDetected((result) => {
+        const code = result.codeResult.code;
+        if (code) {
+          documentIdInput.value = code; // 將條碼結果輸入到公文編號框
+          stopScanner(); // 停止掃描
+        }
+      });
+    }
+
+    function stopScanner() {
+      isScanning = false;
+      startScannerButton.textContent = '啟用相機掃描';
+      scannerContainer.style.display = 'none';
+      Quagga.stop();
+    }
+  </script>
+</body>
+</html>
