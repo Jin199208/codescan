@@ -3,121 +3,161 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>條碼掃描測試頁面</title>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+  <title>公文編號輸入頁面</title>
   <style>
     body {
       font-family: Arial, sans-serif;
       margin: 0;
-      padding: 0;
-      text-align: center;
+      padding: 20px;
       background-color: #f4f4f4;
     }
-    h1 {
-      margin-top: 20px;
+    .container {
+      max-width: 400px;
+      margin: 0 auto;
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
     }
-    #input-container {
-      margin: 20px auto;
+    h1 {
+      text-align: center;
+      color: #333;
+    }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      color: #555;
+      font-weight: bold;
     }
     input[type="text"] {
-      width: 80%;
-      padding: 10px;
+      width: 100%;
+      padding: 12px;
       font-size: 16px;
-      margin-bottom: 10px;
+      border: 2px solid #ddd;
+      border-radius: 5px;
+      box-sizing: border-box;
+      margin-bottom: 15px;
+    }
+    input[type="text"]:focus {
+      border-color: #007BFF;
+      outline: none;
+    }
+    .camera-input {
+      margin-bottom: 15px;
+    }
+    input[type="file"] {
+      width: 100%;
+      padding: 10px;
+      border: 2px dashed #007BFF;
+      border-radius: 5px;
+      background: #f8f9ff;
+      cursor: pointer;
     }
     button {
-      padding: 10px 20px;
+      width: 100%;
+      padding: 12px;
       font-size: 16px;
-      cursor: pointer;
-      background-color: #007BFF;
+      background-color: #28a745;
       color: white;
       border: none;
       border-radius: 5px;
+      cursor: pointer;
+      margin-top: 10px;
     }
-    #scanner-container {
-      position: relative;
-      width: 100%;
-      max-width: 400px;
-      margin: 20px auto;
+    button:hover {
+      background-color: #218838;
+    }
+    .info {
+      background: #e7f3ff;
+      padding: 10px;
+      border-radius: 5px;
+      margin-bottom: 15px;
+      font-size: 14px;
+      color: #0066cc;
+    }
+    .result {
+      margin-top: 20px;
+      padding: 15px;
+      background: #d4edda;
+      border: 1px solid #c3e6cb;
+      border-radius: 5px;
       display: none;
-    }
-    #scanner {
-      width: 100%;
-      border: 1px solid #ccc;
     }
   </style>
 </head>
 <body>
-  <h1>條碼掃描測試頁面</h1>
-  <div id="input-container">
+  <div class="container">
+    <h1>公文編號輸入</h1>
+    
+    <div class="info">
+      💡 提示：如果您的條碼清晰，可以用手機相機拍照後手動輸入編號
+    </div>
+
     <label for="document-id">公文編號：</label>
-    <input type="text" id="document-id" placeholder="請輸入或掃描條碼">
-    <button id="start-scanner">啟用相機掃描</button>
-  </div>
-  <div id="scanner-container">
-    <video id="scanner"></video>
+    <input type="text" id="document-id" placeholder="請輸入公文編號" autocomplete="off">
+    
+    <div class="camera-input">
+      <label for="camera">或拍照輔助輸入：</label>
+      <input type="file" id="camera" accept="image/*" capture="environment">
+    </div>
+    
+    <button onclick="submitForm()">提交</button>
+    
+    <div id="result" class="result">
+      <strong>輸入成功！</strong><br>
+      公文編號：<span id="result-text"></span>
+    </div>
   </div>
 
   <script>
-    const startScannerButton = document.getElementById('start-scanner');
     const documentIdInput = document.getElementById('document-id');
-    const scannerContainer = document.getElementById('scanner-container');
-    const scannerVideo = document.getElementById('scanner');
+    const cameraInput = document.getElementById('camera');
+    const resultDiv = document.getElementById('result');
+    const resultText = document.getElementById('result-text');
 
-    let isScanning = false;
-
-    startScannerButton.addEventListener('click', () => {
-      if (isScanning) {
-        stopScanner();
-      } else {
-        startScanner();
+    // 拍照後提示用戶手動輸入
+    cameraInput.addEventListener('change', function(e) {
+      if (e.target.files && e.target.files[0]) {
+        alert('照片已拍攝！請查看條碼並手動輸入編號到上方欄位');
+        documentIdInput.focus();
       }
     });
 
-    function startScanner() {
-      isScanning = true;
-      startScannerButton.textContent = '停止掃描';
-      scannerContainer.style.display = 'block';
+    // 自動格式化輸入（移除空格、統一大寫等）
+    documentIdInput.addEventListener('input', function(e) {
+      let value = e.target.value.replace(/\s+/g, '').toUpperCase();
+      e.target.value = value;
+    });
 
-      Quagga.init({
-        inputStream: {
-          name: 'Live',
-          type: 'LiveStream',
-          target: scannerVideo,
-          constraints: {
-            width: 640,
-            height: 480,
-            facingMode: 'environment' // 使用後置相機
-          }
-        },
-        decoder: {
-          readers: ['code_128_reader', 'ean_reader', 'ean_8_reader'] // 支援的條碼格式
-        }
-      }, (err) => {
-        if (err) {
-          console.error(err);
-          alert('無法啟用相機，請檢查瀏覽器權限或設備相機');
-          stopScanner();
-          return;
-        }
-        Quagga.start();
-      });
-
-      Quagga.onDetected((result) => {
-        const code = result.codeResult.code;
-        if (code) {
-          documentIdInput.value = code; // 將條碼結果輸入到公文編號框
-          stopScanner(); // 停止掃描
-        }
-      });
+    function submitForm() {
+      const docId = documentIdInput.value.trim();
+      
+      if (!docId) {
+        alert('請輸入公文編號');
+        documentIdInput.focus();
+        return;
+      }
+      
+      // 這裡可以整合到你的原始系統
+      resultText.textContent = docId;
+      resultDiv.style.display = 'block';
+      
+      // 模擬提交到後端
+      console.log('提交公文編號:', docId);
+      
+      // 3秒後清除結果
+      setTimeout(() => {
+        resultDiv.style.display = 'none';
+        documentIdInput.value = '';
+      }, 3000);
     }
 
-    function stopScanner() {
-      isScanning = false;
-      startScannerButton.textContent = '啟用相機掃描';
-      scannerContainer.style.display = 'none';
-      Quagga.stop();
-    }
+    // 支援 Enter 鍵提交
+    documentIdInput.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        submitForm();
+      }
+    });
   </script>
 </body>
 </html>
