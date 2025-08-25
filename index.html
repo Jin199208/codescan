@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>公文編號輸入頁面</title>
+  <title>條碼掃描公文編號輸入</title>
+  <script type="text/javascript" src="https://unpkg.com/@zxing/library@latest"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -22,6 +23,10 @@
     h1 {
       text-align: center;
       color: #333;
+      margin-bottom: 20px;
+    }
+    .input-group {
+      margin-bottom: 20px;
     }
     label {
       display: block;
@@ -36,36 +41,52 @@
       border: 2px solid #ddd;
       border-radius: 5px;
       box-sizing: border-box;
-      margin-bottom: 15px;
     }
     input[type="text"]:focus {
       border-color: #007BFF;
       outline: none;
     }
-    .camera-input {
-      margin-bottom: 15px;
-    }
-    input[type="file"] {
-      width: 100%;
-      padding: 10px;
-      border: 2px dashed #007BFF;
-      border-radius: 5px;
-      background: #f8f9ff;
-      cursor: pointer;
+    .scanner-section {
+      text-align: center;
+      margin-bottom: 20px;
     }
     button {
       width: 100%;
       padding: 12px;
       font-size: 16px;
-      background-color: #28a745;
-      color: white;
       border: none;
       border-radius: 5px;
       cursor: pointer;
-      margin-top: 10px;
+      margin-bottom: 10px;
     }
-    button:hover {
+    .scan-btn {
+      background-color: #007BFF;
+      color: white;
+    }
+    .scan-btn:hover {
+      background-color: #0056b3;
+    }
+    .submit-btn {
+      background-color: #28a745;
+      color: white;
+    }
+    .submit-btn:hover {
       background-color: #218838;
+    }
+    .stop-btn {
+      background-color: #dc3545;
+      color: white;
+    }
+    .stop-btn:hover {
+      background-color: #c82333;
+    }
+    #video {
+      width: 100%;
+      max-width: 300px;
+      height: 200px;
+      border: 2px solid #007BFF;
+      border-radius: 5px;
+      display: none;
     }
     .info {
       background: #e7f3ff;
@@ -74,6 +95,7 @@
       margin-bottom: 15px;
       font-size: 14px;
       color: #0066cc;
+      text-align: center;
     }
     .result {
       margin-top: 20px;
@@ -83,78 +105,152 @@
       border-radius: 5px;
       display: none;
     }
+    .error {
+      background: #f8d7da;
+      border: 1px solid #f5c6cb;
+      color: #721c24;
+    }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>公文編號輸入</h1>
+    <h1>📄 公文條碼掃描</h1>
     
     <div class="info">
-      💡 提示：如果您的條碼清晰，可以用手機相機拍照後手動輸入編號
+      📱 點擊「開始掃描」啟用相機，將條碼對準畫面中央
     </div>
 
-    <label for="document-id">公文編號：</label>
-    <input type="text" id="document-id" placeholder="請輸入公文編號" autocomplete="off">
-    
-    <div class="camera-input">
-      <label for="camera">或拍照輔助輸入：</label>
-      <input type="file" id="camera" accept="image/*" capture="environment">
+    <div class="input-group">
+      <label for="document-id">公文編號：</label>
+      <input type="text" id="document-id" placeholder="條碼掃描後自動填入" readonly>
     </div>
     
-    <button onclick="submitForm()">提交</button>
+    <div class="scanner-section">
+      <button id="start-btn" class="scan-btn" onclick="startScanning()">📷 開始掃描</button>
+      <button id="stop-btn" class="stop-btn" onclick="stopScanning()" style="display:none;">⏹️ 停止掃描</button>
+      <video id="video"></video>
+    </div>
+    
+    <button class="submit-btn" onclick="submitForm()">✅ 提交公文編號</button>
     
     <div id="result" class="result">
-      <strong>輸入成功！</strong><br>
+      <strong>掃描成功！</strong><br>
       公文編號：<span id="result-text"></span>
     </div>
   </div>
 
   <script>
+    let codeReader = null;
+    let scanning = false;
+    
     const documentIdInput = document.getElementById('document-id');
-    const cameraInput = document.getElementById('camera');
+    const video = document.getElementById('video');
+    const startBtn = document.getElementById('start-btn');
+    const stopBtn = document.getElementById('stop-btn');
     const resultDiv = document.getElementById('result');
     const resultText = document.getElementById('result-text');
 
-    // 拍照後提示用戶手動輸入
-    cameraInput.addEventListener('change', function(e) {
-      if (e.target.files && e.target.files[0]) {
-        alert('照片已拍攝！請查看條碼並手動輸入編號到上方欄位');
-        documentIdInput.focus();
+    // 初始化條碼讀取器
+    function initializeCodeReader() {
+      if (!codeReader) {
+        codeReader = new ZXing.BrowserMultiFormatReader();
       }
-    });
+    }
 
-    // 自動格式化輸入（移除空格、統一大寫等）
-    documentIdInput.addEventListener('input', function(e) {
-      let value = e.target.value.replace(/\s+/g, '').toUpperCase();
-      e.target.value = value;
-    });
+    // 開始掃描
+    async function startScanning() {
+      try {
+        initializeCodeReader();
+        
+        // 顯示視頻元素
+        video.style.display = 'block';
+        startBtn.style.display = 'none';
+        stopBtn.style.display = 'block';
+        
+        // 清除之前的結果
+        resultDiv.style.display = 'none';
+        documentIdInput.value = '';
+        
+        scanning = true;
+        
+        // 開始掃描（使用後置相機）
+        const result = await codeReader.decodeOnceFromVideoDevice(undefined, 'video');
+        
+        if (result && scanning) {
+          // 掃描成功
+          const scannedText = result.text;
+          documentIdInput.value = scannedText;
+          resultText.textContent = scannedText;
+          resultDiv.style.display = 'block';
+          
+          // 自動停止掃描
+          stopScanning();
+          
+          // 3秒後隱藏結果
+          setTimeout(() => {
+            resultDiv.style.display = 'none';
+          }, 3000);
+        }
+        
+      } catch (error) {
+        console.error('掃描錯誤:', error);
+        showError('無法啟動相機或掃描條碼，請檢查：\n1. 瀏覽器權限\n2. 相機是否被其他應用占用\n3. 網站是否使用 HTTPS');
+        stopScanning();
+      }
+    }
 
+    // 停止掃描
+    function stopScanning() {
+      scanning = false;
+      
+      if (codeReader) {
+        codeReader.reset();
+      }
+      
+      video.style.display = 'none';
+      startBtn.style.display = 'block';
+      stopBtn.style.display = 'none';
+    }
+
+    // 顯示錯誤訊息
+    function showError(message) {
+      const tempDiv = document.createElement('div');
+      tempDiv.className = 'result error';
+      tempDiv.innerHTML = `<strong>錯誤：</strong><br>${message.replace(/\n/g, '<br>')}`;
+      
+      const container = document.querySelector('.container');
+      container.appendChild(tempDiv);
+      
+      setTimeout(() => {
+        container.removeChild(tempDiv);
+      }, 5000);
+    }
+
+    // 提交表單
     function submitForm() {
       const docId = documentIdInput.value.trim();
       
       if (!docId) {
-        alert('請輸入公文編號');
-        documentIdInput.focus();
+        alert('請先掃描條碼取得公文編號');
         return;
       }
       
-      // 這裡可以整合到你的原始系統
-      resultText.textContent = docId;
-      resultDiv.style.display = 'block';
-      
-      // 模擬提交到後端
+      // 這裡整合到你的原始系統
       console.log('提交公文編號:', docId);
+      alert(`公文編號已提交：${docId}`);
       
-      // 3秒後清除結果
-      setTimeout(() => {
-        resultDiv.style.display = 'none';
-        documentIdInput.value = '';
-      }, 3000);
+      // 清除輸入
+      documentIdInput.value = '';
     }
+
+    // 頁面卸載時停止掃描
+    window.addEventListener('beforeunload', () => {
+      stopScanning();
+    });
 
     // 支援 Enter 鍵提交
     documentIdInput.addEventListener('keypress', function(e) {
-      if (e.key === 'Enter') {
+      if (e.key === 'Enter' && documentIdInput.value.trim()) {
         submitForm();
       }
     });
